@@ -1,0 +1,16 @@
+backend/.venv/
+backend/.venv311/
+backend/.venv-run/
+backend/app/data/northstar.db
+backend/app/data/*.joblib
+backend/__pycache__/
+backend/**/__pycache__/
+frontend/node_modules/
+frontend/dist/
+.env
+backend/.env
+frontend/.env
+.DS_Store
+_bootstrap*.py
+__pycache__/
+*.pyc

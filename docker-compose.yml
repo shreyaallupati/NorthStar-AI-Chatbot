@@ -1,0 +1,11 @@
+# Optional — evaluators do not need Docker. SQLite is used by default.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: northstar
+      POSTGRES_PASSWORD: northstar
+      POSTGRES_DB: northstar
+    ports:
+      - "5432:5432"
+    profiles: ["full"]

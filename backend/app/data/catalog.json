@@ -1,0 +1,127 @@
+{
+  "orders": [
+    {
+      "order_id": "111",
+      "status": "Shipped",
+      "detail": "arriving tomorrow",
+      "item": "Alpine Ridge Tent (2-person)",
+      "ordered_at": "2026-07-20",
+      "within_return_window": true
+    },
+    {
+      "order_id": "222",
+      "status": "Processing",
+      "detail": "ships in 24 hours",
+      "item": "Trailblazer Hiking Boots",
+      "ordered_at": "2026-07-30",
+      "within_return_window": true
+    },
+    {
+      "order_id": "333",
+      "status": "Delivered",
+      "detail": "delivered successfully",
+      "item": "Summit Down Sleeping Bag",
+      "ordered_at": "2026-06-15",
+      "within_return_window": false
+    }
+  ],
+  "policies": {
+    "returns": {
+      "window_days": 30,
+      "unused_required": true,
+      "original_packaging_required": true,
+      "returns_link": "https://northstar.example/returns",
+      "summary": "We offer 30-day returns on unused items in original packaging."
+    },
+    "shipping": {
+      "standard": "3-5 business days",
+      "expedited": "1-2 business days"
+    }
+  },
+  "products": [
+    {
+      "id": "p1",
+      "name": "Summit Down Sleeping Bag",
+      "category": "sleeping_bags",
+      "temp_rating_f": -20,
+      "fill": "800-fill goose down",
+      "best_for": "sub-zero winter camping",
+      "price": 289,
+      "tags": ["sleeping bag", "winter", "sub-zero", "cold", "down"]
+    },
+    {
+      "id": "p2",
+      "name": "Trail Nest Synthetic Bag",
+      "category": "sleeping_bags",
+      "temp_rating_f": 20,
+      "fill": "synthetic",
+      "best_for": "3-season backpacking",
+      "price": 129,
+      "tags": ["sleeping bag", "3-season", "backpacking", "budget"]
+    },
+    {
+      "id": "p3",
+      "name": "Alpine Ridge Tent",
+      "category": "tents",
+      "capacity": "2-person",
+      "season": "3-season",
+      "best_for": "weekend backpacking",
+      "price": 249,
+      "tags": ["tent", "camping", "backpacking", "2-person"]
+    },
+    {
+      "id": "p4",
+      "name": "Basecamp Family Dome",
+      "category": "tents",
+      "capacity": "4-person",
+      "season": "3-season",
+      "best_for": "car camping with family",
+      "price": 199,
+      "tags": ["tent", "family", "car camping", "dome"]
+    },
+    {
+      "id": "p5",
+      "name": "PeakLayer Insulated Jacket",
+      "category": "apparel",
+      "best_for": "cold hikes and layering",
+      "price": 179,
+      "tags": ["jacket", "apparel", "insulated", "cold", "hiking"]
+    },
+    {
+      "id": "p6",
+      "name": "Trailblazer Hiking Boots",
+      "category": "footwear",
+      "best_for": "rugged day hikes",
+      "price": 159,
+      "tags": ["boots", "footwear", "hiking", "trail"]
+    },
+    {
+      "id": "p7",
+      "name": "GlowForge Camp Stove",
+      "category": "camp_kitchen",
+      "best_for": "backcountry cooking",
+      "price": 89,
+      "tags": ["stove", "cooking", "camp kitchen", "backpack"]
+    }
+  ],
+  "faqs": [
+    {
+      "id": "faq1",
+      "question": "What is your return policy?",
+      "answer": "North Star offers 30-day returns. Items must be unused and in original packaging. Start a return at https://northstar.example/returns.",
+      "tags": ["return", "exchange", "refund", "policy"]
+    },
+    {
+      "id": "faq2",
+      "question": "How long does shipping take?",
+      "answer": "Standard shipping takes 3-5 business days. Expedited shipping takes 1-2 business days.",
+      "tags": ["shipping", "delivery", "standard", "expedited"]
+    },
+    {
+      "id": "faq3",
+      "question": "Do you ship to Canada?",
+      "answer": "Yes  -  we ship across North America. Standard and expedited options apply based on destination.",
+      "tags": ["shipping", "canada", "international"]
+    }
+  ]
+}
