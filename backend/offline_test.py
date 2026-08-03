@@ -274,6 +274,35 @@ def test_use_case_order_tracking() -> None:
     expect(state["awaiting"] == "order_id", "invalid order should re-ask")
 
 
+def test_order_context_cleared_after_status() -> None:
+    state = initial_state("e2e-order-context")
+
+    state = run_turn(state, "Where is my order?")
+    expect(state["awaiting"] == "order_id", "should ask for the order number")
+
+    state = run_turn(state, "111")
+    expect("shipped" in state["reply"].lower(), f"#111 must be Shipped: {state['reply']!r}")
+    expect(state.get("order_id") is None, "order context must be cleared once status is shown")
+
+    # A fresh tracking request must start a new lookup, not re-display #111.
+    state = run_turn(state, "Where is my order?")
+    expect(state["intent"] == "order_tracking", f"intent was {state['intent']}")
+    expect(state["awaiting"] == "order_id", "should prompt for a new order number")
+    expect("order number" in state["reply"].lower(), f"should ask for a number: {state['reply']!r}")
+    expect("shipped" not in state["reply"].lower(), "must not re-show the previous status")
+
+    # The new lookup then proceeds normally.
+    state = run_turn(state, "#222")
+    expect("processing" in state["reply"].lower(), f"#222 must be Processing: {state['reply']!r}")
+
+    # "Main menu" also clears any in-progress order slot.
+    state = run_turn(state, "Where is my order?")
+    expect(state["awaiting"] == "order_id", "should ask for the order number again")
+    state = run_turn(state, "main menu")
+    expect(state.get("order_id") is None, "menu must clear the order context")
+    expect(state["awaiting"] is None, "menu must clear the pending slot")
+
+
 def test_use_case_returns() -> None:
     state = initial_state("e2e-returns")
 
@@ -397,6 +426,7 @@ TESTS = [
     test_graph_structure,
     test_grounding_guard_overrides_ungrounded_order_reply,
     test_use_case_order_tracking,
+    test_order_context_cleared_after_status,
     test_use_case_returns,
     test_use_case_shipping,
     test_use_case_recommendations,

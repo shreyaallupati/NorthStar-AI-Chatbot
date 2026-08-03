@@ -22,6 +22,12 @@ def run() -> None:
     expect("Shipped" in state["reply"] or "shipped" in state["reply"], "111 shipped")
     expect("tomorrow" in state["reply"], "111 arriving tomorrow")
 
+    # Order context is cleared after a status reply: a fresh tracking request
+    # must ask for a new number instead of re-showing #111.
+    state = run_turn(state, "Where is my order?")
+    expect(state["awaiting"] == "order_id", "should re-ask for order id after a completed lookup")
+    expect("shipped" not in state["reply"].lower(), "must not re-display the previous status")
+
     state = run_turn(state, "Track package 222")
     expect("Processing" in state["reply"] or "processing" in state["reply"], "222 processing")
 

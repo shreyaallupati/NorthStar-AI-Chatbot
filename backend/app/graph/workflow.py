@@ -156,6 +156,7 @@ def menu_node(state: ChatState) -> dict[str, Any]:
     return {
         "intent": "menu",
         "awaiting": None,
+        "order_id": None,
         "rec_answers": [],
         "template": "menu",
         "facts": {},
@@ -165,7 +166,10 @@ def menu_node(state: ChatState) -> dict[str, Any]:
 
 def order_agent_node(state: ChatState) -> dict[str, Any]:
     message = state.get("user_message") or ""
-    order_id = extract_order_id(message) or state.get("order_id")
+    # Only a number in *this* message starts a lookup. The order context is
+    # cleared once a status is shown, so a fresh "where is my order?" must
+    # re-ask for a number instead of replaying the previous order.
+    order_id = extract_order_id(message)
 
     if not order_id:
         return {
@@ -178,7 +182,7 @@ def order_agent_node(state: ChatState) -> dict[str, Any]:
     order = lookup_order(order_id)
     if not order:
         return {
-            "order_id": order_id,
+            "order_id": None,
             "awaiting": "order_id",
             "template": "order_not_found",
             "facts": {"order_id": order_id},
@@ -216,7 +220,9 @@ def order_agent_node(state: ChatState) -> dict[str, Any]:
         suggestions = ["Track another order", "Main menu", "Talk to a human"]
 
     return {
-        "order_id": order["order_id"],
+        # Clear the active order context: the next tracking request starts a
+        # new lookup and asks for a new order number.
+        "order_id": None,
         "awaiting": None,
         "template": template,
         "facts": facts,
@@ -228,7 +234,9 @@ def order_agent_node(state: ChatState) -> dict[str, Any]:
 def returns_agent_node(state: ChatState) -> dict[str, Any]:
     message = state.get("user_message") or ""
     policies = get_policies()["returns"]
-    order_id = extract_order_id(message) or state.get("order_id")
+    # Order context is cleared after every completed lookup, so eligibility
+    # checks need an order number in the current message.
+    order_id = extract_order_id(message)
     faq_bit = faq_chain.invoke({"query": message or "return policy", "policy_kind": "returns"})
 
     facts: dict[str, Any] = {
