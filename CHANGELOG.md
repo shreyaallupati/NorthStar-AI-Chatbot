@@ -1,5 +1,92 @@
 # Changelog
 
+## Chat-loop fixes — live-agent exit + recommendation slot leak (Aug 4, 2026)
+
+### The issues
+
+1. **Greeting / "help" silently ended live-agent handoff.** After "Talk to a human", messages
+   like `hi`, `hello`, `help`, or `good morning` were classified as `menu` with high
+   confidence, so the bot flipped back to main menu — even though the code intended that only
+   a clear return-to-bot request should end the handoff.
+2. **Recommendation clarifying questions were skipped** when a prior turn left a foreign
+   `awaiting` value (e.g. `order_id` after "Where is my order?"). The recommendation agent
+   treated any non-`rec_use_case` slot as the final preference step and jumped straight to
+   product picks.
+
+### What was happening
+
+**Before (live agent):**
+
+```
+USER: Talk to a human
+BOT : You're now chatting with a Live Agent. ...
+
+USER: hi
+BOT : Pick a trail ...   <- silently kicked back to bot menu
+```
+
+**After (live agent):**
+
+```
+USER: Talk to a human
+BOT : You're now chatting with a Live Agent. ...
+
+USER: hi
+BOT : Live Agent is still with you. ...   <- stays in handoff
+
+USER: Return to bot
+BOT : Pick a trail ...   <- explicit exit still works
+```
+
+**Before (recommendations after tracking ask):**
+
+```
+USER: Where is my order?
+BOT : Happy to track that for you. What's your order number? ...
+
+USER: can you recommend something
+BOT : <immediate product picks>   <- skipped clarifying questions
+```
+
+**After:**
+
+```
+USER: Where is my order?
+BOT : Happy to track that for you. What's your order number? ...
+
+USER: can you recommend something
+BOT : Happy to gear you up. What are you shopping for ...   <- asks clarifying questions
+```
+
+### What changed
+
+All changes are in `backend/app/graph/workflow.py`:
+
+- **Live-agent exit is phrasing-based, not confidence-based.** Control returns to the bot only
+  on an explicit menu override (`main menu`, `return to bot`, …) or clear paraphrases
+  (`i want the bot again`, `give me the bot back`, …). Greetings and `help` stay with the
+  live agent.
+- **Recommendation agent ignores foreign leftover slots.** Any `awaiting` other than
+  `None` / `rec_use_case` / `rec_preference` (e.g. leftover `order_id`) is treated as a fresh
+  recommendation start so clarifying questions still run.
+
+### What did not change
+
+- Explicit exits (`Main menu`, `Return to bot`, `i want the bot again`) still end handoff.
+- Vague recommendation openers from a clean state still ask 1–2 clarifying questions; detailed
+  openers with enough signal still recommend immediately.
+- Order tracking, returns, shipping, fallback, and `DEMO_SCRIPT.md` flows are unchanged.
+
+### Testing
+
+- `backend/offline_test.py` — new regressions:
+  - `test_live_agent_ignores_greeting_and_help`
+  - `test_recommendation_ignores_foreign_awaiting_slot`
+  **All 18 offline tests pass.**
+- `backend/smoke_test.py` — **Passes.**
+
+---
+
 ## Review fix — order tracking context is cleared after each lookup (Aug 3, 2026)
 
 ### The feedback

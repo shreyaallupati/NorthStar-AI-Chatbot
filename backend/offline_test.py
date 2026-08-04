@@ -11,6 +11,8 @@ Coverage:
   2. Deterministic overrides (order number / "talk to a human" / "main menu")
      win regardless of the classifier.
   3. Low-confidence and out-of-vocabulary input routes to `fallback`.
+     Unrelated "where is my <noun>?" phrasing also routes to `fallback`
+     instead of entering order tracking.
   4. The hybrid TF-IDF + BM25 retriever ranks a sub-zero sleeping-bag query
      above unrelated gear.
   5. The LangGraph app has the expected nodes and conditional edges.
@@ -145,9 +147,13 @@ def test_deterministic_overrides_win() -> None:
 # 3. Low confidence / out of vocabulary
 # --------------------------------------------------------------------------- #
 def test_low_confidence_routes_to_fallback() -> None:
-    text = "the moon is quite bright tonight friend"
+    text = "today the sky looks luminous and calm"
     prediction = model.predict(text)
     expect(prediction is not None, "classifier should return a prediction")
+    expect(
+        prediction.known_tokens > 0,
+        f"expected in-vocabulary tokens for {text!r}",
+    )
     expect(
         prediction.confidence < settings.intent_confidence_threshold,
         f"expected low confidence for {text!r}, got {prediction.confidence:.3f}",
@@ -162,6 +168,44 @@ def test_low_confidence_routes_to_fallback() -> None:
     expect(
         decision.intent == "fallback" and decision.source == "classifier:out_of_vocab",
         f"out-of-vocabulary input should fall back, got {decision.intent}/{decision.source}",
+    )
+
+
+def test_unrelated_where_is_my_routes_to_fallback() -> None:
+    """'Where is my <noun>?' without order-domain language is out of scope."""
+    unrelated = [
+        "Where is my <abc>?",
+        "Where is my cat?",
+        "where's my dog",
+        "where is my pizza",
+        "Where is my mind?",
+        "where did my phone go",
+    ]
+    for text in unrelated:
+        decision = route(text)
+        expect(
+            decision.intent == "fallback",
+            f"unrelated tracking phrasing should fall back: {text!r} -> "
+            f"{decision.intent}/{decision.source}",
+        )
+
+    # Legitimate tracking phrasing must still enter the order-tracking flow.
+    for text in ("Where is my order?", "where's my package", "where's my stuff"):
+        decision = route(text)
+        expect(
+            decision.intent == "order_tracking",
+            f"valid tracking phrasing should stay order_tracking: {text!r} -> "
+            f"{decision.intent}/{decision.source}",
+        )
+
+    state = initial_state("e2e-unrelated-tracking")
+    state = run_turn(state, "Where is my <abc>?")
+    expect(state["intent"] == "fallback", f"intent was {state['intent']}")
+    expect(state.get("awaiting") != "order_id", "must not ask for an order number")
+    expect(
+        "didn't quite get that" in state["reply"].lower()
+        or "not catching" in state["reply"].lower(),
+        f"should use fallback copy: {state['reply']!r}",
     )
 
 
@@ -386,6 +430,54 @@ def test_use_case_handoff_and_menu() -> None:
     expect("Talk to a human" in state["suggestions"], "escalation should be one click away")
 
 
+def test_live_agent_ignores_greeting_and_help() -> None:
+    """Greetings / help must not silently end a live-agent handoff."""
+    state = initial_state("e2e-live-agent-stay")
+    state = run_turn(state, "talk to a human")
+    expect(state["mode"] == "live_agent", f"mode was {state['mode']}")
+
+    for message in ("hi", "hello", "help", "good morning"):
+        state = run_turn(state, message)
+        expect(
+            state["mode"] == "live_agent",
+            f"{message!r} must stay with the live agent, got mode={state['mode']!r}",
+        )
+        expect(
+            "Live Agent is still with you" in state["reply"],
+            f"{message!r} should ack, got: {state['reply']!r}",
+        )
+
+    # Explicit return-to-bot phrasing still ends the handoff.
+    state = run_turn(state, "Return to bot")
+    expect(state["mode"] == "bot", f"explicit exit should return to bot, got {state['mode']}")
+
+
+def test_recommendation_ignores_foreign_awaiting_slot() -> None:
+    """Leftover order_id awaiting must not skip recommendation clarifying questions."""
+    state = initial_state("e2e-rec-slot-leak")
+    state = run_turn(state, "Where is my order?")
+    expect(state["awaiting"] == "order_id", "should be awaiting an order number")
+
+    # Vague recommendation request with a foreign leftover slot.
+    state = run_turn(state, "can you recommend something")
+    expect(state["intent"] == "recommendations", f"intent was {state['intent']}")
+    expect(
+        state["awaiting"] == "rec_use_case",
+        f"should ask clarifying questions, awaiting={state['awaiting']!r}",
+    )
+    expect(
+        "Summit Down" not in state["reply"] and "Tent" not in state["reply"],
+        f"must not skip straight to picks: {state['reply']!r}",
+    )
+
+    state = run_turn(state, "sleeping bags")
+    expect(state["awaiting"] == "rec_preference", "second clarifying question expected")
+
+    state = run_turn(state, "sub-zero winter camping")
+    expect("Summit Down Sleeping Bag" in state["reply"], f"picks: {state['reply']!r}")
+    expect(state["awaiting"] is None, "slots cleared after recommending")
+
+
 def test_use_case_fallback() -> None:
     state = initial_state("e2e-fallback")
     state = run_turn(state, "asdfgh qwerty")
@@ -422,6 +514,7 @@ TESTS = [
     test_classifier_covers_every_label,
     test_deterministic_overrides_win,
     test_low_confidence_routes_to_fallback,
+    test_unrelated_where_is_my_routes_to_fallback,
     test_retriever_ranks_subzero_bag_first,
     test_graph_structure,
     test_grounding_guard_overrides_ungrounded_order_reply,
@@ -431,6 +524,8 @@ TESTS = [
     test_use_case_shipping,
     test_use_case_recommendations,
     test_use_case_handoff_and_menu,
+    test_live_agent_ignores_greeting_and_help,
+    test_recommendation_ignores_foreign_awaiting_slot,
     test_use_case_fallback,
     test_keyword_router_fallback,
 ]

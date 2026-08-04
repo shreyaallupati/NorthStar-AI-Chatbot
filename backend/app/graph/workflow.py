@@ -26,6 +26,7 @@ anti-hallucination grounding guard. There is no LLM anywhere in the graph.
 from __future__ import annotations
 
 import logging
+import re
 from copy import deepcopy
 from typing import Any
 
@@ -49,8 +50,27 @@ DEFAULT_SUGGESTIONS = [
 ]
 
 # While a live agent "has" the chat, only a clear request should hand control
-# back to the bot -- an ambiguous message must not silently end the handoff.
-LIVE_AGENT_EXIT_CONFIDENCE = 0.55
+# back to the bot -- greetings / "help" must not silently end the handoff even
+# if the classifier labels them as `menu`.
+LIVE_AGENT_EXIT_RE = re.compile(
+    r"(?:"
+    r"\bmain\s+menu\b|"
+    r"^\s*menu\s*[.!?]*$|"
+    r"\bstart\s+over\b|"
+    r"\bgo\s+back\b|"
+    r"\brestart\b|"
+    r"\breset\b|"
+    r"\b(?:return|back)\s+to\s+(?:the\s+)?bot\b|"
+    r"\b(?:want|need)\s+(?:the\s+)?bot\b|"
+    r"\b(?:give|get)\s+me\s+(?:the\s+)?bot\b|"
+    r"\b(?:put|send)\s+me\s+back\b|"
+    r"\bbot\s+again\b|"
+    r"\bbot\s+back\b"
+    r")",
+    re.IGNORECASE,
+)
+
+REC_SLOT_VALUES = frozenset({"rec_use_case", "rec_preference"})
 
 REC_HINT_TOKENS = (
     "sleep",
@@ -109,10 +129,12 @@ def ingest_node(state: ChatState) -> dict[str, Any]:
 
 
 def live_agent_node(state: ChatState) -> dict[str, Any]:
-    decision = route(state.get("user_message") or "")
+    message = state.get("user_message") or ""
+    decision = route(message)
+    # Exit only on an explicit return-to-bot request (override or clear phrasing).
+    # Classifier "menu" hits for greetings like "hi" / "help" stay with the agent.
     wants_menu = decision.intent == "menu" and (
-        decision.source.startswith("override")
-        or decision.confidence >= LIVE_AGENT_EXIT_CONFIDENCE
+        decision.source.startswith("override") or LIVE_AGENT_EXIT_RE.search(message) is not None
     )
     if wants_menu:
         return {
@@ -337,6 +359,12 @@ def recommendation_agent_node(state: ChatState) -> dict[str, Any]:
     message = state.get("user_message") or ""
     awaiting = state.get("awaiting")
     answers = list(state.get("rec_answers") or [])
+
+    # Foreign leftover slots (e.g. order_id from a prior tracking ask) must not
+    # skip clarifying questions — treat them as a fresh recommendation start.
+    if awaiting not in {None, *REC_SLOT_VALUES}:
+        awaiting = None
+        answers = []
 
     if awaiting is None:
         result = _rec_result(message)

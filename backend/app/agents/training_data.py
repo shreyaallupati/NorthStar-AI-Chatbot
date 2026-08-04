@@ -209,6 +209,16 @@ TRAINING_EXAMPLES: dict[str, list[str]] = {
         "i don't know",
         "no idea",
         "maybe later",
+        # "where is my …" with an unrelated object must not become order tracking
+        "where is my cat",
+        "where's my dog",
+        "where is my mind",
+        "where is my pizza",
+        "where is my house",
+        "where is my <abc>",
+        "where's my car keys",
+        "where did my phone go",
+        "where is my homework",
     ],
 }
 

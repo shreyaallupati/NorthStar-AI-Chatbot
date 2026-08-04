@@ -4,6 +4,9 @@ Layer 1 - high-precision deterministic overrides (explicit order number,
 explicit "talk to a human", explicit "main menu", active slot-filling context).
 Layer 2 - the locally trained scikit-learn classifier, gated by a confidence
 threshold so unfamiliar input becomes `fallback` instead of a wrong guess.
+Unrelated "where is my <noun>?" phrasing without order-domain language is also
+forced to `fallback` so the classifier cannot over-generalise from
+"where is my order" into the tracking flow.
 Layer 3 - the original keyword/regex router, used only when scikit-learn is not
 importable so the bot never crashes.
 """
@@ -117,6 +120,22 @@ RETURN_LANGUAGE_RE = re.compile(
     r"\b(returns?|returning|refund(?:s|ed)?|exchange|money back)\b|send (?:it|this|them) back",
     re.IGNORECASE,
 )
+# "where is my X" / "where's my X" without an order-domain noun is out of scope
+# (e.g. "where is my cat?", "where is my <abc>?") — the classifier otherwise
+# over-generalises from "where is my order" training examples.
+WHERE_IS_MY_RE = re.compile(
+    r"\bwhere(?:'s|\s+is|\s+has|\s+did)\s+my\b",
+    re.IGNORECASE,
+)
+ORDER_DOMAIN_RE = re.compile(
+    r"\b("
+    r"orders?|packages?|parcels?|shipments?|deliver(?:y|ies)|"
+    r"tracking|track|stuff|box(?:es)?|purchases?|"
+    r"ship(?:ped|ping)?|dispatch(?:ed)?|warehouse|"
+    r"arrive[ds]?|arriving"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -210,6 +229,19 @@ def route(message: str, awaiting: str | None = None) -> RouterDecision:
             prediction.intent,
         )
         return RouterDecision("fallback", prediction.confidence, "classifier:low_confidence")
+
+    if (
+        prediction.intent == "order_tracking"
+        and WHERE_IS_MY_RE.search(text)
+        and not ORDER_DOMAIN_RE.search(text)
+    ):
+        logger.debug(
+            "unrelated 'where is my …' phrasing for %r, routing to fallback",
+            text,
+        )
+        return RouterDecision(
+            "fallback", prediction.confidence, "classifier:unrelated_tracking"
+        )
 
     return RouterDecision(prediction.intent, prediction.confidence, "classifier")
 
